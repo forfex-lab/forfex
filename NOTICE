@@ -1,0 +1,20 @@
+forfex
+Copyright 2026 francb
+
+Licensed under the Apache License, Version 2.0.
+
+forfex is an independent clean-room implementation of the
+architecture described in:
+
+  Qu, Huang, Yin, Zhan, Liu, Yin, Cousins, Johnson, Wang, Shah,
+  Altman, Zhou, Wang, Cong. "CRISPR-GPT for agentic automation of
+  gene-editing experiments." Nat Biomed Eng 2026;10(2):245-258.
+  doi:10.1038/s41551-025-01463-z
+
+It is NOT affiliated with, endorsed by, or derived from the
+authors' implementation. No code, prompts, or data from
+cong-lab/crispr-gpt-pub were used. See docs/clean-room.md.
+
+forfex orchestrates third-party bioinformatics tools as separate
+processes. Those tools carry their own licences and are not
+redistributed with forfex. See docs/third-party.md.

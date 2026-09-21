@@ -1,0 +1,5 @@
+/forfex
+/dist/
+*.db
+*.db-journal
+.env
