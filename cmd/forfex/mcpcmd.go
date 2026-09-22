@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -35,6 +36,11 @@ func toolsCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("tools", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	timeout := fs.Duration("timeout", 30*time.Second, "overall timeout")
+	// Authoring a task means declaring the tool's arguments by name, and
+	// guessing them from a description is how a declaration drifts from
+	// the tool it describes. `forfex task verify` catches that drift
+	// afterwards; this flag is how you avoid introducing it.
+	schemas := fs.Bool("schemas", false, "also print each tool's inputSchema")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -63,6 +69,21 @@ func toolsCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	for _, t := range tools {
 		fmt.Fprintf(stdout, "  %-28s %s\n", t.Name, t.Description)
+		if !*schemas {
+			continue
+		}
+		if len(t.InputSchema) == 0 {
+			fmt.Fprintln(stdout, "      (no inputSchema published)")
+			continue
+		}
+		var pretty bytes.Buffer
+		if err := json.Indent(&pretty, t.InputSchema, "      ", "  "); err != nil {
+			// Print it raw rather than dropping it: an unparseable
+			// schema is something the task author needs to see.
+			fmt.Fprintf(stdout, "      %s\n", t.InputSchema)
+			continue
+		}
+		fmt.Fprintf(stdout, "      %s\n", pretty.String())
 	}
 	return 0
 }

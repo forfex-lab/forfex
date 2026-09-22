@@ -32,6 +32,8 @@ func main() {
 		os.Exit(toolsCmd(os.Args[2:], os.Stdout, os.Stderr))
 	case "call":
 		os.Exit(callCmd(os.Args[2:], os.Stdout, os.Stderr))
+	case "task":
+		os.Exit(taskCmd(os.Args[2:], os.Stdout, os.Stderr))
 	case "-h", "--help", "help":
 		usage()
 		os.Exit(0)
@@ -48,15 +50,21 @@ func usage() {
 Usage:
   forfex route -worker NAME -destination local|external [-provenance P] < body
 
-  forfex tools [-timeout D] -- <server-cmd> [args...]
+  forfex tools [-schemas] [-timeout D] -- <server-cmd> [args...]
   forfex call  -tool NAME -destination local|external [-args JSON]
                [-provenance P] -- <server-cmd> [args...]
+
+  forfex task  list | explain | verify | run     (forfex task -h)
 
 route   Reads a payload body on stdin and reports whether Rule 4 permits
         sending it to that worker. Nothing is sent.
 tools   Starts an MCP server, handshakes, and lists its tools.
 call    Invokes a tool THROUGH THE BUS, so Rule 4 applies exactly as it
-        does in the orchestrator.
+        does in the orchestrator. The provenance is whatever you type,
+        and nothing checks it — which is what "task" exists to replace.
+task    Runs a DECLARED task: its arguments are a closed set, and the
+        provenance is derived from the ones actually supplied rather
+        than asserted on the command line.
 
 Exit 0 allowed/ok, 1 refused or tool error, 2 usage.
 
