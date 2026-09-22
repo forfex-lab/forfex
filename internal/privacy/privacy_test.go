@@ -151,3 +151,26 @@ func TestKnownGaps(t *testing.T) {
 		}
 	})
 }
+
+// TestZeroDestinationIsExternal pins the fail-closed direction for
+// Destination, matching what Provenance already does.
+//
+// This caught a real defect. Destination was originally declared
+// `Local Destination = iota`, making Local the zero value — so any
+// struct literal that omitted the field got the PERMISSIVE
+// destination, where Rule 4 does not apply. A caller that forgot to
+// set it would have been handed a pass rather than a refusal.
+func TestZeroDestinationIsExternal(t *testing.T) {
+	var d Destination // never assigned
+
+	if d != External {
+		t.Fatalf("zero Destination = %v, want External — the zero value must be the one that refuses", d)
+	}
+
+	// The behavioural consequence, which is the part that matters.
+	var p Payload // zero Provenance too
+	p.Body = "ACGTACGTACGTACGTACGT"
+	if got := Check(p, d); got.Allowed {
+		t.Fatal("a fully zero-valued Check allowed sequence out; it must fail closed")
+	}
+}

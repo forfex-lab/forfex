@@ -46,11 +46,17 @@ const (
 type Destination int
 
 const (
-	// Local inference runs on this machine. Rule 4 routes sequence here.
-	Local Destination = iota
 	// External is any model or service off this machine — Claude, Codex,
 	// Grok, opencode, or a hosted MCP endpoint.
-	External
+	//
+	// External is FIRST so that it is the zero value, matching the
+	// choice made for Provenance: the value you get by forgetting to
+	// set the field is the one that refuses. Declaring Local first
+	// reads more naturally and is wrong — it hands a caller who omits
+	// the field the destination where Rule 4 does not apply.
+	External Destination = iota
+	// Local inference runs on this machine. Rule 4 routes sequence here.
+	Local
 )
 
 func (d Destination) String() string {
@@ -97,7 +103,7 @@ func Check(p Payload, dest Destination) Decision {
 	if !p.Provenance.externalSafe() {
 		return Decision{
 			Allowed:   false,
-			Reason:    "provenance " + p.Provenance.describe() + " is local-inference-only (Rule 4)",
+			Reason:    "provenance " + p.Provenance.Describe() + " is local-inference-only (Rule 4)",
 			RunLength: run,
 			Offset:    off,
 		}
@@ -119,7 +125,9 @@ func (p Provenance) externalSafe() bool {
 	return p == Published
 }
 
-func (p Provenance) describe() string {
+// Describe renders a provenance for a human, naming the fallback
+// explicitly so "unknown" never reads as "no restriction".
+func (p Provenance) Describe() string {
 	if p == Unknown {
 		return "unknown (treated as unpublished)"
 	}
