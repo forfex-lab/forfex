@@ -174,3 +174,50 @@ func TestZeroDestinationIsExternal(t *testing.T) {
 		t.Fatal("a fully zero-valued Check allowed sequence out; it must fail closed")
 	}
 }
+
+// TestEscapedWhitespaceDoesNotBreakARun covers the payload shape this
+// filter actually sees in production.
+//
+// Found by the MCP wiring, not by inspection. A tool call is serialised
+// to JSON before it is checked, and serialising turns a real newline
+// into the two characters `\` and `n`. The scanner skipped real
+// whitespace — which is what catches line-wrapped FASTA — but a
+// backslash broke the run, so a 60-column FASTA arriving inside a JSON
+// string was scanned as a series of 10-base fragments and passed.
+//
+// The same defect applies to any backslash-escaping format: YAML
+// double-quoted scalars, C string literals, shell $'...'.
+func TestEscapedWhitespaceDoesNotBreakARun(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{`json-escaped newlines`, `>s\nACGTACGTAC\nGTACGTACGT\n`},
+		{`json-escaped carriage returns`, `ACGTACGTAC\r\nGTACGTACGT`},
+		{`json-escaped tabs`, `ACGTACGTAC\tGTACGTACGT`},
+		{`a whole serialised tool call`, `{"tool":"load","arguments":{"fasta":">s\nACGTACGTAC\nGTACGTACGT\n"}}`},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			d := Check(Payload{Provenance: Published, Body: c.body}, External)
+			if d.Allowed {
+				t.Fatalf("escaped whitespace let a wrapped sequence through: %q", c.body)
+			}
+			if d.RunLength < MinRun {
+				t.Errorf("RunLength = %d, want >= %d", d.RunLength, MinRun)
+			}
+		})
+	}
+}
+
+// TestBackslashStillBreaksARunWhenItIsNotAnEscape guards the other
+// direction: skipping every backslash unconditionally would merge
+// unrelated fragments and widen false positives without cause.
+func TestBackslashStillBreaksARunWhenItIsNotAnEscape(t *testing.T) {
+	// `\x` is not a whitespace escape, so the two halves stay separate.
+	d := Check(Payload{Provenance: Published, Body: `ACGTACGTAC\xGTACGTACGT`}, External)
+	if !d.Allowed {
+		t.Errorf("a non-whitespace escape merged two short fragments (run=%d)", d.RunLength)
+	}
+}

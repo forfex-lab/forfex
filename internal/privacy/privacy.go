@@ -21,7 +21,16 @@
 //     would also widen false positives over ordinary prose; the gap is
 //     recorded rather than papered over.
 //   - Protein sequence is not detected at all.
-//   - Encoded or compressed payloads are not decoded before scanning.
+//   - Encoded or compressed payloads are not decoded before scanning. A
+//     base64 argument still passes.
+//
+// One thing it DOES handle, because it is the shape payloads actually
+// arrive in: a serialised body. An MCP tool call is marshalled to JSON
+// before it is checked, which turns a real newline into the two bytes
+// `\` and `n`. The scanner skips backslash-escaped n, r and t as well
+// as the raw characters, so a line-wrapped FASTA inside a JSON string
+// is caught rather than scanned as a series of short fragments. That
+// gap was live until the MCP wiring exposed it.
 //
 // It is a boundary check against accidental disclosure, not an
 // exfiltration-resistant control against a determined caller.
@@ -151,6 +160,24 @@ func longestNucleotideRun(s string) (length, offset int) {
 
 	for i := 0; i < len(s); i++ {
 		c := s[i]
+
+		// A backslash-escaped whitespace character is whitespace that
+		// has been through a serialiser. By the time a payload reaches
+		// this filter it is usually inside JSON, where a real newline
+		// became the two bytes `\` and `n` — and a 60-column FASTA then
+		// scans as a series of short fragments unless the pair is
+		// skipped the way the raw character is.
+		//
+		// Only n, r and t are consumed this way. Skipping every
+		// backslash would merge genuinely separate fragments.
+		if c == '\\' && i+1 < len(s) {
+			switch s[i+1] {
+			case 'n', 'r', 't':
+				i++ // consume both; neither extends nor breaks the run
+				continue
+			}
+		}
+
 		switch {
 		case isNucleotide(c):
 			if cur == 0 {

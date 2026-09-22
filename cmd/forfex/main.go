@@ -28,6 +28,10 @@ func main() {
 	switch os.Args[1] {
 	case "route":
 		os.Exit(routeCmd(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
+	case "tools":
+		os.Exit(toolsCmd(os.Args[2:], os.Stdout, os.Stderr))
+	case "call":
+		os.Exit(callCmd(os.Args[2:], os.Stdout, os.Stderr))
 	case "-h", "--help", "help":
 		usage()
 		os.Exit(0)
@@ -44,13 +48,22 @@ func usage() {
 Usage:
   forfex route -worker NAME -destination local|external [-provenance P] < body
 
-Reads a payload body on stdin and reports whether Rule 4 permits sending
-it to that worker. Nothing is sent. Exit 0 allowed, 1 refused, 2 usage.
+  forfex tools [-timeout D] -- <server-cmd> [args...]
+  forfex call  -tool NAME -destination local|external [-args JSON]
+               [-provenance P] -- <server-cmd> [args...]
+
+route   Reads a payload body on stdin and reports whether Rule 4 permits
+        sending it to that worker. Nothing is sent.
+tools   Starts an MCP server, handshakes, and lists its tools.
+call    Invokes a tool THROUGH THE BUS, so Rule 4 applies exactly as it
+        does in the orchestrator.
+
+Exit 0 allowed/ok, 1 refused or tool error, 2 usage.
 
   -provenance  published | unpublished | elabftw | unknown  (default unknown)
 
-The body is never echoed, so this is safe to run on material that must
-not be logged.
+Payload bodies and tool arguments are never echoed, so these are safe to
+run on material that must not be logged.
 `)
 }
 
