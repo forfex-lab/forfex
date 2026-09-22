@@ -1,0 +1,64 @@
+name: go
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # go.mod is the single source of the version, so this file cannot
+      # drift from the module's own declaration.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l ./cmd ./internal)
+          if [ -n "$unformatted" ]; then
+            echo "::error::not gofmt-clean:"; echo "$unformatted"; exit 1
+          fi
+          echo "clean"
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test -race
+        run: go test -race -count=1 ./...
+
+      # The egress allowlist is the structural half of Rule 4: Dispatch is
+      # the single exit only if no other package can open a socket or spawn
+      # a process. It is an ordinary test, so `go test ./...` above already
+      # runs it — this step exists to fail loudly if it ever stops running,
+      # because a guard that silently disappears is indistinguishable from
+      # a guard that passes. The same reason the vault's schema job carries
+      # a vacuous-pass check.
+      - name: Rule 4 egress guard actually ran
+        run: |
+          out=$(go test ./internal/bus/ -count=1 -v \
+                  -run 'TestOnlyTransportPackagesCanReachOffMachine|TestGuardIsNotVacuous')
+          echo "$out"
+          for name in TestOnlyTransportPackagesCanReachOffMachine TestGuardIsNotVacuous; do
+            echo "$out" | grep -q -- "--- PASS: $name" || {
+              echo "::error::$name did not run or did not pass"; exit 1; }
+          done
+
+      # Rule 2 names MCP shims and the orchestrator as ours to write, and
+      # the zero-dependency property is an audit argument rather than an
+      # aesthetic one — decisions/mcp-client in the vault rests on it. If a
+      # dependency is ever warranted, this step is where that decision gets
+      # made explicitly instead of arriving in a diff.
+      - name: go.mod has no requires
+        run: |
+          if grep -qE '^\s*require' go.mod; then
+            echo "::error::go.mod acquired a dependency; see decisions/mcp-client in the vault"
+            grep -nE '^\s*require' go.mod
+            exit 1
+          fi
+          echo "zero dependencies"

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -80,7 +81,36 @@ func runHelperServer() {
 	}
 }
 
-func startHelper(t *testing.T, stderr *strings.Builder) *Client {
+// safeLog is a concurrency-safe stderr sink for the helper child.
+//
+// os/exec copies a child's stderr on its own goroutine whenever the
+// writer is not an *os.File, and it keeps doing so until Wait returns.
+// A strings.Builder read from the test goroutine while that copier is
+// running is a data race — one the race detector finds and an ordinary
+// `go test` does not, which is how it survived until CI turned -race on.
+//
+// This is not only a test concern: StdioProcess takes any io.Writer, so
+// any caller passing an unsynchronised one has the same race. The
+// constraint is now documented on StdioProcess; this type is what the
+// tests use to honour it.
+type safeLog struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (l *safeLog) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *safeLog) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
+}
+
+func startHelper(t *testing.T, stderr *safeLog) *Client {
 	t.Helper()
 	exe, err := os.Executable()
 	if err != nil {
@@ -98,7 +128,7 @@ func startHelper(t *testing.T, stderr *strings.Builder) *Client {
 }
 
 func TestStdioProcessRoundTrip(t *testing.T) {
-	var stderr strings.Builder
+	var stderr safeLog
 	c := startHelper(t, &stderr)
 
 	info, err := c.Initialize(context.Background(), "forfex", "1")
@@ -127,7 +157,7 @@ func TestStdioProcessRoundTrip(t *testing.T) {
 }
 
 func TestStdioProcessCapturesChildStderr(t *testing.T) {
-	var stderr strings.Builder
+	var stderr safeLog
 	c := startHelper(t, &stderr)
 	if _, err := c.Initialize(context.Background(), "forfex", "1"); err != nil {
 		t.Fatal(err)
@@ -143,7 +173,7 @@ func TestStdioProcessCapturesChildStderr(t *testing.T) {
 }
 
 func TestStdioProcessCloseTerminatesTheChild(t *testing.T) {
-	var stderr strings.Builder
+	var stderr safeLog
 	c := startHelper(t, &stderr)
 	if _, err := c.Initialize(context.Background(), "forfex", "1"); err != nil {
 		t.Fatal(err)

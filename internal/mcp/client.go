@@ -65,6 +65,14 @@ func NewClient(r io.Reader, w io.Writer, closer io.Closer) *Client {
 // The child's stderr is handed to logw rather than discarded — an MCP
 // server that fails to start usually says why there, and swallowing it
 // turns a clear error into "no response".
+//
+// logw must be safe to write from another goroutine until Close
+// returns. os/exec copies a child's stderr on a goroutine of its own
+// whenever the writer is not an *os.File, and it keeps copying until
+// Wait completes. An *os.File — what the CLI passes — needs nothing;
+// anything else needs its own synchronisation, and reading it while the
+// child is alive is otherwise a data race. This package's own tests had
+// exactly that race until CI started running with -race.
 func StdioProcess(ctx context.Context, logw io.Writer, name string, args ...string) (*Client, error) {
 	return StdioProcessEnv(ctx, logw, nil, name, args...)
 }
