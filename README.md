@@ -35,6 +35,15 @@ overstated.
 knows whether it came from a published source, a local computation, or
 a measurement — and that determines where it may be sent.
 
+Concretely: a tool is not called by name with free-form arguments. It is
+called through a *task*, which declares the arguments it accepts and the
+provenance of each, and the payload's provenance is **derived** from the
+arguments actually supplied rather than asserted at the call site. An
+argument the task did not declare is refused before anything is sent,
+because an undeclared argument has no declared provenance and the
+derivation would then be a guess. `forfex task explain` prints that
+derivation for a call without making it.
+
 ---
 
 ## Architecture

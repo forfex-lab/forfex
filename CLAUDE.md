@@ -43,6 +43,14 @@ Enforced at the tool boundary in Go, not by prompt.
 Also block any payload with >=20 consecutive A/T/G/C/U from
 reaching an external model.
 
+Tool calls go through `internal/task`. A task declares every
+argument it accepts and the provenance of each; the payload's
+provenance is DERIVED from the ones actually supplied, never
+asserted by the caller. An undeclared argument is refused
+before dispatch, because it would carry no declaration.
+`forfex call` still takes an asserted provenance — it is the
+debugging path, not the production one.
+
 ## Rule 5 — Auth (CGTRU-11)
 `claude -p` on this machine only. No Agent SDK (requires an API
 key). No third-party harness reusing subscription OAuth.
